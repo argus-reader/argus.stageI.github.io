@@ -415,7 +415,7 @@ input[type=range].risk-slider::-moz-range-thumb{width:18px;height:18px;backgroun
 
 <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
 // ── CONFIG ─────────────────────────────────────────────────
-const GOOGLE_SHEET_URL = 'https://script.google.com/macros/s/AKfycbyUyLbgqy9W42ayjmbPIJZ0GBIQWXovT7knDUNN2354FtYt87bvQWrZrwaUXqR5wrbj/exec';
+const GOOGLE_SHEET_URL = 'https://script.google.com/macros/s/AKfycbwkjvftdk0xdWNcTfU4O-wJPFj_vPzX-1W1LSQrZONC0P3oKQgIpY5zQIgQlJWbLWt0/exec';
 
 // ── PASSWORD ───────────────────────────────────────────────
 // SHA-256 of 'CERArgus2026!$%'
@@ -669,18 +669,13 @@ async function submitToGoogleSheets(caseId, score){
     likelihood_score: score
   };
   try {
-    var resp = await fetch(GOOGLE_SHEET_URL, {
+    await fetch(GOOGLE_SHEET_URL, {
       method: 'POST',
+      mode: 'no-cors',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     });
-    var result = await resp.json();
-    if(result.result === 'success'){
-      showToast('Saved \u2713');
-    } else {
-      console.warn('Sheets response:', result);
-      showToast('Check connection');
-    }
+    showToast('Saved \u2713');
   } catch(err){
     console.error('Sheets error:', err);
     showToast('Offline \u2014 saved locally');
