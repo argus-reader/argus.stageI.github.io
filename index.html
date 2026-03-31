@@ -202,19 +202,17 @@ input[type=range].risk-slider::-moz-range-thumb{width:18px;height:18px;backgroun
     <p class="login-task">AI-based Report for Glaucoma Detection: User-centered Study</p>
     <p class="login-subtitle">This is a research project. We will first ask a few brief survey questions. Then, we will show you OCT reports and ask you to rate the likelihood of glaucomatous visual field defect (GVFD) from these reports. Each case presents one image for independent assessment. Please use your allocated Reader ID.<br><br>All submissions are collected anonymously for research purposes using unique reader identifiers. For questions, please see contact details below. Participation is voluntary and you can withdraw from the study at any point by contacting the investigator below.<br><br>All responses are saved automatically, but as a back-up, could you export your responses for each session as an Excel file, please, and provide to the investigator below at the end of your session.</p>
     <div style="display:flex;margin-bottom:24px;border:1px solid var(--border);overflow:hidden;">
-      <button id="tab-signup" onclick="setAuthMode('signup')" style="flex:1;padding:10px;background:var(--accent);color:#000;border:none;font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;cursor:pointer;">New Reader</button>
-      <button id="tab-signin" onclick="setAuthMode('signin')" style="flex:1;padding:10px;background:transparent;color:var(--text-muted);border:none;font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;cursor:pointer;">Returning Reader</button>
+      <button id="tab-signup" onclick="setAuthMode('signup')" style="flex:1;padding:10px;background:var(--accent);color:#000;border:none;font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;cursor:pointer;">Register New Reader</button>
+      <button id="tab-signin" onclick="setAuthMode('signin')" style="flex:1;padding:10px;background:transparent;color:var(--text-muted);border:none;font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;cursor:pointer;">Reader Login</button>
     </div>
 
     <div id="signup-fields">
       <label class="field-label" for="reader-email">Email Address</label>
       <input class="field-input" type="email" id="reader-email" placeholder="e.g. yourname@hospital.com" autocomplete="off">
-      <label class="field-label" for="reader-id-signup">Reader ID</label>
-      <input class="field-input" type="text" id="reader-id-signup" placeholder="e.g. ARGUS001" autocomplete="off">
       <label class="field-label" for="study-password-signup">Choose Password</label>
-      <input class="field-input" type="password" id="study-password-signup" placeholder="Create a password" autocomplete="off" style="margin-bottom:4px;">
-      <p style="font-size:10px;color:var(--text-dim);margin-bottom:20px;">You will receive a verification email before accessing the study.</p>
-      <button class="btn-primary" id="btn-signup" onclick="doSignup()">Create Account &rarr;</button>
+      <input class="field-input" type="password" id="study-password-signup" placeholder="Create a password (min. 8 characters)" autocomplete="off" style="margin-bottom:4px;">
+      <p style="font-size:10px;color:var(--text-dim);margin-bottom:20px;">A verification email will be sent to you. Your unique Reader ID will be provided after verification.</p>
+      <button class="btn-primary" id="btn-signup" onclick="doSignup()">Register &rarr;</button>
     </div>
 
     <div id="signin-fields" style="display:none;">
@@ -484,7 +482,7 @@ function ts(){ return new Date().toISOString(); }
 
 document.getElementById('case-count-display').textContent = 40+40+480+480;
 buildTicks();
-document.getElementById('reader-email').addEventListener('keydown', function(e){ if(e.key==='Enter') document.getElementById('reader-id-signup').focus(); });
+document.getElementById('reader-email').addEventListener('keydown', function(e){ if(e.key==='Enter') document.getElementById('study-password-signup').focus(); });
 document.getElementById('study-password').addEventListener('keydown', function(e){ if(e.key==='Enter') startStudy(); });
 
 function buildTicks(){
@@ -512,14 +510,13 @@ function setAuthMode(mode){
 
 async function doSignup(){
   var email = document.getElementById('reader-email').value.trim();
-  var rid   = document.getElementById('reader-id-signup').value.trim().toUpperCase();
   var pass  = document.getElementById('study-password-signup').value;
   var err   = document.getElementById('login-error');
   var succ  = document.getElementById('login-success');
   var btn   = document.getElementById('btn-signup');
 
-  if(!email || !rid || !pass){
-    err.textContent = 'Please fill in all fields.';
+  if(!email || !pass){
+    err.textContent = 'Please enter your email and choose a password.';
     err.style.display='block'; return;
   }
   if(pass.length < 8){
@@ -527,23 +524,27 @@ async function doSignup(){
     err.style.display='block'; return;
   }
 
-  btn.textContent = 'Creating account...'; btn.disabled = true;
+  btn.textContent = 'Registering...'; btn.disabled = true;
   err.style.display = 'none';
+
+  // Auto-generate Reader ID via Supabase RPC
+  var ridResult = await supabase.rpc('generate_reader_id');
+  var autoRid = ridResult.data || ('ARGUS' + String(Math.floor(Math.random()*900)+100));
 
   var result = await supabase.auth.signUp({
     email: email,
     password: pass,
-    options: { data: { reader_id: rid } }
+    options: { data: { reader_id: autoRid } }
   });
 
-  btn.textContent = 'Create Account →'; btn.disabled = false;
+  btn.textContent = 'Register →'; btn.disabled = false;
 
   if(result.error){
-    err.textContent = 'Sign-up failed: ' + result.error.message;
+    err.textContent = 'Registration failed: ' + result.error.message;
     err.style.display='block'; return;
   }
 
-  succ.innerHTML = '✓ Account created for <strong>' + rid + '</strong>. Please check your email to verify your account, then return here and sign in using the <strong>Returning Reader</strong> tab.';
+  succ.innerHTML = '✓ Registration successful! Your Reader ID is: <strong style="color:var(--accent);font-size:14px;">' + autoRid + '</strong><br><br>Please note this ID — you will need it to log in. A verification email has been sent to <strong>' + email + '</strong>. Please verify before logging in.';
   succ.style.display='block';
 }
 
