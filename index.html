@@ -415,7 +415,8 @@ input[type=range].risk-slider::-moz-range-thumb{width:18px;height:18px;backgroun
 
 <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
 // ── CONFIG ─────────────────────────────────────────────────
-const GOOGLE_SHEET_URL = 'https://script.google.com/macros/s/AKfycbxqZ4zELRUNg4lV0a4GrctrPitMNJVj6cgMT9iSe8SmEY5FOQQQ2JLQvqRJSgoDYJ0n/exec';
+const SUPABASE_URL = 'https://hieaznchrdyfeqhcwyki.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhpZWF6bmNocmR5ZmVxaGN3eWtpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ5MTQ2NzQsImV4cCI6MjA5MDQ5MDY3NH0.Os9BBR9FVUATF94BI3X3M1Fv-7xY9OgD6Ezgfu_iOVI';
 
 // ── PASSWORD ───────────────────────────────────────────────
 // SHA-256 of 'CERArgus2026!$%'
@@ -663,27 +664,37 @@ function commitGrade(caseId,score){
   else{ showToast('Response recorded'); }
 }
 
-// ── GOOGLE SHEETS ──────────────────────────────────────────
+// ── SUPABASE ───────────────────────────────────────────────
 async function submitToGoogleSheets(caseId, score){
   var payload = {
-    timestamp_submitted:  ts(),
-    timestamp_case_start: caseStartTime,
-    timestamp_session_start: sessionStartTime,
-    reader_id:        readerId,
-    session:          currentSession,
-    case_id:          caseId,
-    likelihood_score: score
+    reader_id:               readerId,
+    session:                 currentSession,
+    case_id:                 caseId,
+    likelihood_score:        score,
+    timestamp_submitted:     ts(),
+    timestamp_case_start:    caseStartTime,
+    timestamp_session_start: sessionStartTime
   };
   try {
-    await fetch(GOOGLE_SHEET_URL, {
+    var resp = await fetch(SUPABASE_URL + '/rest/v1/responses', {
       method: 'POST',
-      mode: 'no-cors',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type':  'application/json',
+        'apikey':        SUPABASE_ANON_KEY,
+        'Authorization': 'Bearer ' + SUPABASE_ANON_KEY,
+        'Prefer':        'return=minimal'
+      },
       body: JSON.stringify(payload)
     });
-    showToast('Saved \u2713');
+    if(resp.ok || resp.status === 201){
+      showToast('Saved to Supabase \u2713');
+    } else {
+      var err = await resp.text();
+      console.warn('Supabase error:', err);
+      showToast('Check connection');
+    }
   } catch(err){
-    console.error('Sheets error:', err);
+    console.error('Supabase error:', err);
     showToast('Offline \u2014 saved locally');
   }
 }
