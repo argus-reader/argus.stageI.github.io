@@ -436,7 +436,8 @@ input[type=range].risk-slider::-moz-range-thumb{width:18px;height:18px;backgroun
 // ── SUPABASE CONFIG ────────────────────────────────────────
 const SUPABASE_URL = 'https://hieaznchrdyfeqhcwyki.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhpZWF6bmNocmR5ZmVxaGN3eWtpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ5MTQ2NzQsImV4cCI6MjA5MDQ5MDY3NH0.Os9BBR9FVUATF94BI3X3M1Fv-7xY9OgD6Ezgfu_iOVI';
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const { createClient } = window.supabase;
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 let supabaseSession = null;
 
 // ── IMAGE BASE URL ─────────────────────────────────────────
