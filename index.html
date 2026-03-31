@@ -4,6 +4,7 @@
 <meta charset="UTF-8"><!-- ARGUS_Stage_I v1.0 -->
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ARGUS Stage I</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;1,9..144,300&display=swap" rel="stylesheet">
 <style>
 :root{
@@ -200,12 +201,32 @@ input[type=range].risk-slider::-moz-range-thumb{width:18px;height:18px;backgroun
     <h1 class="login-title"><em>ARGUS</em></h1>
     <p class="login-task">AI-based Report for Glaucoma Detection: User-centered Study</p>
     <p class="login-subtitle">This is a research project. We will first ask a few brief survey questions. Then, we will show you OCT reports and ask you to rate the likelihood of glaucomatous visual field defect (GVFD) from these reports. Each case presents one image for independent assessment. Please use your allocated Reader ID.<br><br>All submissions are collected anonymously for research purposes using unique reader identifiers. For questions, please see contact details below. Participation is voluntary and you can withdraw from the study at any point by contacting the investigator below.<br><br>All responses are saved automatically, but as a back-up, could you export your responses for each session as an Excel file, please, and provide to the investigator below at the end of your session.</p>
-    <label class="field-label" for="reader-id">Reader ID</label>
-    <input class="field-input" type="text" id="reader-id" placeholder="e.g. ARGUS001" autocomplete="off">
-    <label class="field-label" for="study-password">Study Password</label>
-    <input class="field-input" type="password" id="study-password" placeholder="Enter study password" autocomplete="off" style="margin-bottom:20px;">
-    <button class="btn-primary" onclick="startStudy()">Begin Study &rarr;</button>
-    <div class="login-error" id="login-error">Please enter a valid Reader ID and password to continue.</div>
+    <div style="display:flex;margin-bottom:24px;border:1px solid var(--border);overflow:hidden;">
+      <button id="tab-signup" onclick="setAuthMode('signup')" style="flex:1;padding:10px;background:var(--accent);color:#000;border:none;font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;cursor:pointer;">New Reader</button>
+      <button id="tab-signin" onclick="setAuthMode('signin')" style="flex:1;padding:10px;background:transparent;color:var(--text-muted);border:none;font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;cursor:pointer;">Returning Reader</button>
+    </div>
+
+    <div id="signup-fields">
+      <label class="field-label" for="reader-email">Email Address</label>
+      <input class="field-input" type="email" id="reader-email" placeholder="e.g. yourname@hospital.com" autocomplete="off">
+      <label class="field-label" for="reader-id-signup">Reader ID</label>
+      <input class="field-input" type="text" id="reader-id-signup" placeholder="e.g. ARGUS001" autocomplete="off">
+      <label class="field-label" for="study-password-signup">Choose Password</label>
+      <input class="field-input" type="password" id="study-password-signup" placeholder="Create a password" autocomplete="off" style="margin-bottom:4px;">
+      <p style="font-size:10px;color:var(--text-dim);margin-bottom:20px;">You will receive a verification email before accessing the study.</p>
+      <button class="btn-primary" id="btn-signup" onclick="doSignup()">Create Account &rarr;</button>
+    </div>
+
+    <div id="signin-fields" style="display:none;">
+      <label class="field-label" for="reader-id-signin">Reader ID</label>
+      <input class="field-input" type="text" id="reader-id-signin" placeholder="e.g. ARGUS001" autocomplete="off">
+      <label class="field-label" for="study-password-signin">Password</label>
+      <input class="field-input" type="password" id="study-password-signin" placeholder="Enter your password" autocomplete="off" style="margin-bottom:20px;">
+      <button class="btn-primary" id="btn-signin" onclick="doSignin()">Begin Study &rarr;</button>
+    </div>
+
+    <div class="login-error" id="login-error"></div>
+    <div id="login-success" style="display:none;color:var(--accent);font-size:11px;margin-top:10px;line-height:1.6;"></div>
     <div class="login-meta">
       Responses are stored in your browser session and submitted automatically. This study contains <strong id="case-count-display">0</strong> cases across 4 sessions.<br><br>
       <div style="text-align:center;">For more information, contact below:</div>
@@ -414,19 +435,11 @@ input[type=range].risk-slider::-moz-range-thumb{width:18px;height:18px;backgroun
 
 
 <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
-// ── CONFIG ─────────────────────────────────────────────────
+// ── SUPABASE CONFIG ────────────────────────────────────────
 const SUPABASE_URL = 'https://hieaznchrdyfeqhcwyki.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhpZWF6bmNocmR5ZmVxaGN3eWtpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ5MTQ2NzQsImV4cCI6MjA5MDQ5MDY3NH0.Os9BBR9FVUATF94BI3X3M1Fv-7xY9OgD6Ezgfu_iOVI';
-
-// ── PASSWORD ───────────────────────────────────────────────
-// SHA-256 of 'CERArgus2026!$%'
-const PASSWORD_HASH = '1a2b263203e40872f03cff92a645d0fd7ebf1525255cec9a5891a8d17f13643a';
-
-async function hashPassword(pw){
-  const enc = new TextEncoder();
-  const buf = await crypto.subtle.digest('SHA-256', enc.encode(pw));
-  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
-}
+const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+let supabaseSession = null;
 
 // ── IMAGE BASE URL ─────────────────────────────────────────
 const IMAGE_BASE = 'https://argus-reader.github.io/argus_content.github.io/images/CASE_';
@@ -471,7 +484,7 @@ function ts(){ return new Date().toISOString(); }
 
 document.getElementById('case-count-display').textContent = 40+40+480+480;
 buildTicks();
-document.getElementById('reader-id').addEventListener('keydown', function(e){ if(e.key==='Enter') document.getElementById('study-password').focus(); });
+document.getElementById('reader-email').addEventListener('keydown', function(e){ if(e.key==='Enter') document.getElementById('reader-id-signup').focus(); });
 document.getElementById('study-password').addEventListener('keydown', function(e){ if(e.key==='Enter') startStudy(); });
 
 function buildTicks(){
@@ -485,27 +498,104 @@ function buildTicks(){
 }
 
 // ── LOGIN ──────────────────────────────────────────────────
-async function startStudy(){
-  var v = document.getElementById('reader-id').value.trim();
-  var p = document.getElementById('study-password').value;
-  if(!v || !p){ document.getElementById('login-error').style.display='block'; return; }
-  var hashed = await hashPassword(p);
-  if(hashed !== PASSWORD_HASH){
-    document.getElementById('login-error').textContent = 'Incorrect password. Please try again.';
-    document.getElementById('login-error').style.display='block';
+function setAuthMode(mode){
+  var isSignup = mode === 'signup';
+  document.getElementById('signup-fields').style.display = isSignup ? 'block' : 'none';
+  document.getElementById('signin-fields').style.display = isSignup ? 'none' : 'block';
+  document.getElementById('tab-signup').style.background = isSignup ? 'var(--accent)' : 'transparent';
+  document.getElementById('tab-signup').style.color = isSignup ? '#000' : 'var(--text-muted)';
+  document.getElementById('tab-signin').style.background = isSignup ? 'transparent' : 'var(--accent)';
+  document.getElementById('tab-signin').style.color = isSignup ? 'var(--text-muted)' : '#000';
+  document.getElementById('login-error').style.display = 'none';
+  document.getElementById('login-success').style.display = 'none';
+}
+
+async function doSignup(){
+  var email = document.getElementById('reader-email').value.trim();
+  var rid   = document.getElementById('reader-id-signup').value.trim().toUpperCase();
+  var pass  = document.getElementById('study-password-signup').value;
+  var err   = document.getElementById('login-error');
+  var succ  = document.getElementById('login-success');
+  var btn   = document.getElementById('btn-signup');
+
+  if(!email || !rid || !pass){
+    err.textContent = 'Please fill in all fields.';
+    err.style.display='block'; return;
+  }
+  if(pass.length < 8){
+    err.textContent = 'Password must be at least 8 characters.';
+    err.style.display='block'; return;
+  }
+
+  btn.textContent = 'Creating account...'; btn.disabled = true;
+  err.style.display = 'none';
+
+  var result = await supabase.auth.signUp({
+    email: email,
+    password: pass,
+    options: { data: { reader_id: rid } }
+  });
+
+  btn.textContent = 'Create Account →'; btn.disabled = false;
+
+  if(result.error){
+    err.textContent = 'Sign-up failed: ' + result.error.message;
+    err.style.display='block'; return;
+  }
+
+  succ.innerHTML = '✓ Account created for <strong>' + rid + '</strong>. Please check your email to verify your account, then return here and sign in using the <strong>Returning Reader</strong> tab.';
+  succ.style.display='block';
+}
+
+async function doSignin(){
+  var rid  = document.getElementById('reader-id-signin').value.trim().toUpperCase();
+  var pass = document.getElementById('study-password-signin').value;
+  var err  = document.getElementById('login-error');
+  var btn  = document.getElementById('btn-signin');
+
+  if(!rid || !pass){
+    err.textContent = 'Please enter your Reader ID and password.';
+    err.style.display='block'; return;
+  }
+
+  btn.textContent = 'Signing in...'; btn.disabled = true;
+  err.style.display = 'none';
+
+  // Look up email from reader_id stored in user metadata
+  // Sign in requires email - we store reader_id in metadata at signup
+  // Use a Supabase Edge Function or RPC to look up email by reader_id
+  // For now, ask reader to enter email on first signin
+  // Alternative: store reader_id->email mapping in a public lookup table
+  var result = await supabase.rpc('get_email_by_reader_id', { p_reader_id: rid });
+
+  if(result.error || !result.data){
+    err.textContent = 'Reader ID not found. Please check your ID or create an account.';
+    err.style.display='block';
+    btn.textContent = 'Begin Study →'; btn.disabled = false;
     return;
   }
-  readerId = v.toUpperCase();
+
+  var email = result.data;
+  var signIn = await supabase.auth.signInWithPassword({ email: email, password: pass });
+
+  btn.textContent = 'Begin Study →'; btn.disabled = false;
+
+  if(signIn.error){
+    err.textContent = 'Sign-in failed: ' + signIn.error.message;
+    err.style.display='block'; return;
+  }
+
+  supabaseSession = signIn.data.session;
+  readerId = rid;
   document.getElementById('header-reader-id').textContent = readerId;
   showScreen('study-screen');
   switchSession('A');
-  // Show pre-study survey modal
   document.getElementById('survey-modal').classList.add('active');
 }
 
 function dismissSurvey(){
   document.getElementById('survey-modal').classList.remove('active');
-  showToast('Survey complete — welcome to ARGUS Stage I');
+  showToast('Welcome to ARGUS Stage I');
 }
 
 // ── SESSIONS ───────────────────────────────────────────────
@@ -664,7 +754,7 @@ function commitGrade(caseId,score){
   else{ showToast('Response recorded'); }
 }
 
-// ── SUPABASE ───────────────────────────────────────────────
+// ── SUPABASE SUBMIT ────────────────────────────────────────
 async function submitToGoogleSheets(caseId, score){
   var payload = {
     reader_id:               readerId,
@@ -676,21 +766,22 @@ async function submitToGoogleSheets(caseId, score){
     timestamp_session_start: sessionStartTime
   };
   try {
+    var token = supabaseSession ? supabaseSession.access_token : SUPABASE_ANON_KEY;
     var resp = await fetch(SUPABASE_URL + '/rest/v1/responses', {
       method: 'POST',
       headers: {
         'Content-Type':  'application/json',
         'apikey':        SUPABASE_ANON_KEY,
-        'Authorization': 'Bearer ' + SUPABASE_ANON_KEY,
+        'Authorization': 'Bearer ' + token,
         'Prefer':        'return=minimal'
       },
       body: JSON.stringify(payload)
     });
     if(resp.ok || resp.status === 201){
-      showToast('Saved to Supabase \u2713');
+      showToast('Saved \u2713');
     } else {
-      var err = await resp.text();
-      console.warn('Supabase error:', err);
+      var errText = await resp.text();
+      console.warn('Supabase error:', errText);
       showToast('Check connection');
     }
   } catch(err){
