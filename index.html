@@ -338,14 +338,14 @@ input[type=range].risk-slider::-moz-range-thumb{width:18px;height:18px;backgroun
       <div class="likelihood-section">
         <div class="sec-label">Likelihood Score</div>
         <div class="lh-value-row">
-          <div class="lh-number" id="lh-display">50</div>
-          <div class="lh-pct">%</div>
-          <div class="lh-label" id="lh-label">Uncertain</div>
+          <div class="lh-number" id="lh-display" style="color:var(--text-dim);">—</div>
+          <div class="lh-pct" id="lh-pct" style="visibility:hidden;">%</div>
+          <div class="lh-label" id="lh-label" style="visibility:hidden;"></div>
         </div>
         <div class="slider-wrap">
           <div class="slider-track">
             <div class="slider-fill" id="slider-fill" style="width:50%;background:#6b7585"></div>
-            <input type="range" class="risk-slider" id="risk-slider" min="0" max="100" step="5" value="50" oninput="updateSlider(this.value)">
+            <input type="range" class="risk-slider" id="risk-slider" min="0" max="100" step="5" value="50" oninput="updateSlider(this.value, true)">
           </div>
         </div>
         <div class="slider-ticks" id="slider-ticks"></div>
@@ -356,7 +356,7 @@ input[type=range].risk-slider::-moz-range-thumb{width:18px;height:18px;backgroun
         </div>
         <div class="manual-input-row">
           <span class="manual-input-label">Manual entry:</span>
-          <input type="number" class="manual-score-input" id="manual-score" min="0" max="100" step="5" value="50" oninput="onManualInput(this.value)">
+          <input type="number" class="manual-score-input" id="manual-score" min="0" max="100" step="5" value="" placeholder="—" oninput="onManualInput(this.value)">
           <span class="manual-hint">0–100, multiples of 5</span>
         </div>
       </div>
@@ -527,6 +527,7 @@ let pendingGrade = null;
 let isPanning = false, panStartX = 0, panStartY = 0, panOffsetX = 0, panOffsetY = 0;
 let sessionStartTime = null;
 let caseStartTime = null;
+let sliderTouched = false;
 
 function ts(){ return new Date().toISOString(); }
 
@@ -597,6 +598,20 @@ async function doSignup(){
     err.style.display='block'; return;
   }
 
+  // Record in reader registry
+  try {
+    await fetch(SUPABASE_URL + '/rest/v1/reader_registry', {
+      method: 'POST',
+      headers: {
+        'Content-Type':  'application/json',
+        'apikey':        SUPABASE_ANON_KEY,
+        'Authorization': 'Bearer ' + SUPABASE_ANON_KEY,
+        'Prefer':        'return=minimal'
+      },
+      body: JSON.stringify({ reader_id: autoRid, email: email })
+    });
+  } catch(e){ console.warn('Registry insert failed:', e); }
+
   succ.innerHTML = '✓ Registration successful! Your Reader ID is: <strong style="color:var(--accent);font-size:14px;">' + autoRid + '</strong><br><br>Please note this ID — you will need it to log in. A verification email has been sent to <strong>' + email + '</strong>. Please verify before logging in.';
   succ.style.display='block';
 }
@@ -643,7 +658,9 @@ async function doSignin(){
   readerId = rid;
   document.getElementById('header-reader-id').textContent = readerId;
   showScreen('study-screen');
-  switchSession('A');
+  showToast('Restoring previous session...');
+  await restoreSession();
+  switchSession(currentSession);
   document.getElementById('survey-modal').classList.add('active');
 }
 
@@ -676,9 +693,55 @@ async function doForgotPassword(){
   succ.style.display='block';
 }
 
+async function restoreSession(){
+  try {
+    var token = supabaseSession ? supabaseSession.access_token : SUPABASE_ANON_KEY;
+    var resp = await fetch(SUPABASE_URL + '/rest/v1/responses?reader_id=eq.' + encodeURIComponent(readerId) + '&select=session,case_id,likelihood_score,timestamp_submitted', {
+      headers: {
+        'apikey':        SUPABASE_ANON_KEY,
+        'Authorization': 'Bearer ' + token
+      }
+    });
+
+    if(!resp.ok){ console.warn('Session restore failed:', resp.status); return; }
+
+    var rows = await resp.json();
+    if(!rows || rows.length === 0){
+      showToast('No previous responses found');
+      return;
+    }
+
+    // Restore responses into local state
+    var sessionCounts = { A:0, B:0, C:0, D:0 };
+    var lastSession = 'A';
+
+    rows.forEach(function(row){
+      var sess = row.session;
+      if(!responses[sess]) return;
+      responses[sess][row.case_id] = {
+        score:     parseInt(row.likelihood_score),
+        timestamp: row.timestamp_submitted,
+        restored:  true
+      };
+      sessionCounts[sess]++;
+      lastSession = sess;
+    });
+
+    // Switch to the session with most recent activity
+    currentSession = lastSession;
+
+    showToast('✓ Restored ' + rows.length + ' previous response' + (rows.length>1?'s':''));
+    updateTabProgress();
+
+  } catch(err){
+    console.error('Session restore error:', err);
+    showToast('Could not restore previous session');
+  }
+}
+
 function dismissSurvey(){
   document.getElementById('survey-modal').classList.remove('active');
-  showToast('Welcome to ARGUS Stage I');
+  showToast('Welcome back, ' + readerId);
 }
 
 // ── SESSIONS ───────────────────────────────────────────────
@@ -705,6 +768,7 @@ function updateTabProgress(){
 function loadCase(idx){
   currentIndex = idx;
   caseStartTime = ts();
+  sliderTouched = false;
   var c = CASES[idx];
   document.getElementById('overlay-case-id').textContent = c.id;
   panOffsetX=0; panOffsetY=0; zoomLevel=1;
@@ -714,10 +778,23 @@ function loadCase(idx){
   if(c.imageUrl){ img.src=c.imageUrl; img.style.display='block'; ph.style.display='none'; }
   else { img.style.display='none'; ph.style.display='flex'; }
   var saved = responses[currentSession][c.id];
-  var sv = saved ? saved.score : 50;
-  document.getElementById('risk-slider').value = sv;
-  document.getElementById('manual-score').value = sv;
-  updateSlider(sv);
+  if(saved){
+    sliderTouched = true;
+    var sv = saved.score;
+    document.getElementById('risk-slider').value = sv;
+    document.getElementById('manual-score').value = sv;
+    updateSlider(sv, true);
+  } else {
+    sliderTouched = false;
+    document.getElementById('risk-slider').value = 50;
+    document.getElementById('manual-score').value = '';
+    document.getElementById('lh-display').textContent = '—';
+    document.getElementById('lh-display').style.color = 'var(--text-dim)';
+    document.getElementById('lh-pct').style.visibility = 'hidden';
+    document.getElementById('lh-label').style.visibility = 'hidden';
+    document.getElementById('slider-fill').style.width = '50%';
+    document.getElementById('slider-fill').style.background = 'var(--border-bright)';
+  }
   setRespStatus(!!saved);
   var btn = document.getElementById('btn-submit');
   if(saved){ btn.classList.add('graded'); btn.textContent='Update Response'; }
@@ -761,21 +838,34 @@ function resetZoom(){
 }
 
 // ── SLIDER ─────────────────────────────────────────────────
-function updateSlider(val){
+function updateSlider(val, fromUser){
   val=Math.round(parseInt(val)/5)*5;
+  if(isNaN(val))val=50;
   if(val<0)val=0; if(val>100)val=100;
-  document.getElementById('lh-display').textContent=val;
   document.getElementById('risk-slider').value=val;
-  document.getElementById('manual-score').value=val;
-  document.getElementById('slider-fill').style.width=val+'%';
-  var color,label;
-  if(val<=45){color='#4af09a';label=val===0?'Definitely absent':val<=10?'Very unlikely':'Low likelihood';}
-  else if(val<=69){color='#f0a44a';label=val===50?'Uncertain':val<50?'Leaning absent':'Leaning present';}
-  else{color='#f06060';label=val>=90?'Definite defect':'High likelihood';}
-  document.getElementById('slider-fill').style.background=color;
-  document.getElementById('lh-display').style.color=color;
-  document.getElementById('lh-label').textContent=label;
-  document.getElementById('lh-label').style.color=color;
+
+  if(fromUser) sliderTouched = true;
+
+  if(sliderTouched){
+    document.getElementById('lh-display').textContent=val;
+    document.getElementById('lh-pct').style.visibility='visible';
+    document.getElementById('lh-label').style.visibility='visible';
+    document.getElementById('manual-score').value=val;
+    document.getElementById('slider-fill').style.width=val+'%';
+    var color,label;
+    if(val<=45){color='#4af09a';label=val===0?'Definitely absent':val<=10?'Very unlikely':'Low likelihood';}
+    else if(val<=69){color='#f0a44a';label=val===50?'Uncertain':val<50?'Leaning absent':'Leaning present';}
+    else{color='#f06060';label=val>=90?'Definite defect':'High likelihood';}
+    document.getElementById('slider-fill').style.background=color;
+    document.getElementById('lh-display').style.color=color;
+    document.getElementById('lh-label').textContent=label;
+    document.getElementById('lh-label').style.color=color;
+  } else {
+    document.getElementById('lh-display').textContent='—';
+    document.getElementById('lh-display').style.color='var(--text-dim)';
+    document.getElementById('slider-fill').style.width='50%';
+    document.getElementById('slider-fill').style.background='var(--border-bright)';
+  }
 }
 
 function onManualInput(val){
@@ -783,7 +873,7 @@ function onManualInput(val){
   if(isNaN(n)) return;
   n=Math.round(n/5)*5;
   if(n<0)n=0; if(n>100)n=100;
-  updateSlider(n);
+  updateSlider(n, true);
 }
 
 // ── NAVIGATION ─────────────────────────────────────────────
@@ -808,6 +898,13 @@ function updateProgress(){
 
 // ── SUBMIT ─────────────────────────────────────────────────
 function attemptSubmit(){
+  if(!sliderTouched){
+    document.getElementById('login-error').textContent = 'Please move the slider to record a score.';
+    document.getElementById('login-error').style.display = 'block';
+    setTimeout(function(){ document.getElementById('login-error').style.display='none'; }, 3000);
+    return;
+  }
+  document.getElementById('login-error').style.display = 'none';
   var c=CASES[currentIndex];
   var score=Math.round(parseInt(document.getElementById('risk-slider').value)/5)*5;
   if(responses[currentSession][c.id]){
