@@ -595,7 +595,24 @@ async function doSignup(){
     err.style.display='block'; return;
   }
 
-  btn.textContent = 'Registering...'; btn.disabled = true;
+  btn.textContent = 'Checking...'; btn.disabled = true;
+  err.style.display = 'none';
+
+  // Check if email already registered
+  try {
+    var checkResp = await fetch(SUPABASE_URL + '/rest/v1/reader_registry?email=eq.' + encodeURIComponent(email) + '&select=reader_id', {
+      headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + SUPABASE_ANON_KEY }
+    });
+    var existing = await checkResp.json();
+    if(existing && existing.length > 0){
+      err.innerHTML = 'An account with this email already exists (<strong style="color:var(--accent);">' + existing[0].reader_id + '</strong>).<br>Please use the <strong>Reader Login</strong> tab or click <strong>Reset Password</strong>.';
+      err.style.display='block';
+      btn.textContent = 'Register →'; btn.disabled = false;
+      return;
+    }
+  } catch(e){ console.warn('Registry check:', e); }
+
+  btn.textContent = 'Registering...';
   err.style.display = 'none';
 
   // Auto-generate Reader ID via Supabase RPC
