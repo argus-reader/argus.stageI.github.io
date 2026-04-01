@@ -237,10 +237,14 @@ input[type=range].risk-slider::-moz-range-thumb{width:18px;height:18px;backgroun
     </div>
 
     <div id="reset-fields" style="display:none;">
-      <p style="font-size:11px;color:var(--text-muted);line-height:1.6;margin-bottom:16px;">Enter your new password below.</p>
+      <p style="font-size:11px;color:var(--text-muted);line-height:1.6;margin-bottom:20px;">Enter your new password below. Once updated, return to <strong>Reader Login</strong> to sign in.</p>
       <label class="field-label" for="reset-password">New Password</label>
-      <input class="field-input" type="password" id="reset-password" placeholder="Enter new password (min. 8 characters)" autocomplete="off" style="margin-bottom:20px;">
+      <input class="field-input" type="password" id="reset-password" placeholder="Create a new password (min. 8 characters)" autocomplete="off" style="margin-bottom:4px;">
+      <p style="font-size:10px;color:var(--text-dim);margin-bottom:20px;">Choose a password you will remember.</p>
       <button class="btn-primary" id="btn-reset" onclick="doResetPassword()">Set New Password &rarr;</button>
+      <div style="text-align:center;margin-top:12px;">
+        <button onclick="setAuthMode('signin')" style="background:none;border:none;color:var(--text-dim);font-family:var(--mono);font-size:10px;letter-spacing:.08em;cursor:pointer;text-decoration:underline;">Back to login</button>
+      </div>
     </div>
 
     <div class="login-error" id="login-error"></div>
@@ -404,9 +408,10 @@ input[type=range].risk-slider::-moz-range-thumb{width:18px;height:18px;backgroun
     <div class="modal-icon">&#128682;</div>
     <div class="modal-title">Exit Study</div>
     <div class="modal-body">Any unsaved responses will be lost. Save your progress before exiting?</div>
-    <div class="modal-actions">
-      <button class="btn-m-cancel btn-m-danger" onclick="exitWithoutSave()">Exit Without Saving</button>
-      <button class="btn-m-confirm" onclick="saveAndExit()">Save &amp; Exit</button>
+    <div class="modal-actions" style="flex-wrap:wrap;gap:6px;">
+      <button class="btn-m-cancel" onclick="closeModal('modal-exit')" style="flex:1;">Cancel</button>
+      <button class="btn-m-cancel btn-m-danger" onclick="exitWithoutSave()" style="flex:1;">Exit Without Saving</button>
+      <button class="btn-m-confirm" onclick="saveAndExit()" style="flex:1;">Save &amp; Exit</button>
     </div>
   </div>
 </div>
@@ -661,6 +666,10 @@ async function doSignin(){
   showToast('Restoring previous session...');
   await restoreSession();
   switchSession(currentSession);
+  if(window._restoreIndex && window._restoreIndex > 0){
+    loadCase(window._restoreIndex);
+    window._restoreIndex = 0;
+  }
   document.getElementById('survey-modal').classList.add('active');
 }
 
@@ -727,10 +736,16 @@ async function restoreSession(){
       lastSession = sess;
     });
 
-    // Switch to the session with most recent activity
+    // Switch to session with most recent activity
     currentSession = lastSession;
 
-    showToast('✓ Restored ' + rows.length + ' previous response' + (rows.length>1?'s':''));
+    // Find first unscored case
+    var sCases = SESSIONS[lastSession];
+    var firstUnscored = 0;
+    for(var i=0;i<sCases.length;i++){ if(!responses[lastSession][sCases[i].id]){ firstUnscored=i; break; } }
+    window._restoreIndex = firstUnscored;
+
+    showToast('✓ Restored ' + rows.length + ' response' + (rows.length>1?'s':'') + ' — resuming from Case '+(firstUnscored+1));
     updateTabProgress();
 
   } catch(err){
@@ -871,8 +886,28 @@ function updateSlider(val, fromUser){
 function onManualInput(val){
   var n=parseInt(val);
   if(isNaN(n)) return;
+  if(n<0)n=0; if(n>100)n=100;
+  // Show hint if not a multiple of 5
+  var hint = document.getElementById('manual-hint');
+  if(n % 5 !== 0){
+    hint.textContent = 'Please enter a multiple of 5';
+    hint.style.color = 'var(--danger)';
+  } else {
+    hint.textContent = '0–100';
+    hint.style.color = 'var(--text-dim)';
+    updateSlider(n, true);
+  }
+}
+
+function onManualBlur(val){
+  var n=parseInt(val);
+  if(isNaN(n)) return;
+  // Round to nearest 5 on blur
   n=Math.round(n/5)*5;
   if(n<0)n=0; if(n>100)n=100;
+  document.getElementById('manual-score').value = n;
+  document.getElementById('manual-hint').textContent = '0–100';
+  document.getElementById('manual-hint').style.color = 'var(--text-dim)';
   updateSlider(n, true);
 }
 
@@ -1017,8 +1052,8 @@ function triggerSave(cb){
 }
 
 function triggerExit(){ openModal('modal-exit'); }
-function exitWithoutSave(){ closeModal('modal-exit'); showScreen('login-screen'); responses={A:{},B:{},C:{},D:{}}; readerId=''; showToast('Session ended'); }
-function saveAndExit(){ closeModal('modal-exit'); triggerSave(function(){ showScreen('login-screen'); responses={A:{},B:{},C:{},D:{}}; readerId=''; }); }
+function exitWithoutSave(){ closeModal('modal-exit'); sbClient.auth.signOut(); showScreen('login-screen'); responses={A:{},B:{},C:{},D:{}}; readerId=''; supabaseSession=null; showToast('Session ended'); }
+function saveAndExit(){ closeModal('modal-exit'); triggerSave(function(){ sbClient.auth.signOut(); showScreen('login-screen'); responses={A:{},B:{},C:{},D:{}}; readerId=''; supabaseSession=null; }); }
 
 // ── UTILITIES ──────────────────────────────────────────────
 function showResetPasswordForm(){
