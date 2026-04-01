@@ -409,9 +409,8 @@ input[type=range].risk-slider::-moz-range-thumb{width:18px;height:18px;backgroun
     <div class="modal-icon">&#128682;</div>
     <div class="modal-title">Exit Study</div>
     <div class="modal-body">Any unsaved responses will be lost. Save your progress before exiting?</div>
-    <div class="modal-actions" style="flex-wrap:wrap;gap:6px;">
+    <div class="modal-actions">
       <button class="btn-m-cancel" onclick="closeModal('modal-exit')" style="flex:1;">Cancel</button>
-      <button class="btn-m-cancel btn-m-danger" onclick="exitWithoutSave()" style="flex:1;">Exit Without Saving</button>
       <button class="btn-m-confirm" onclick="saveAndExit()" style="flex:1;">Save &amp; Exit</button>
     </div>
   </div>
@@ -935,14 +934,17 @@ function onManualInput(val){
   if(n < 0) n = 0;
   if(n > 100) n = 100;
   var hint = document.getElementById('manual-hint');
+  // Update slider immediately with any value — round to nearest 5
+  var rounded = Math.round(n / 5) * 5;
   if(n % 5 !== 0){
-    hint.textContent = 'Will round to nearest 5 on entry';
+    hint.textContent = n + ' → rounds to ' + rounded;
     hint.style.color = 'var(--warn)';
   } else {
     hint.textContent = '0–100';
     hint.style.color = 'var(--text-dim)';
-    updateSlider(n, true);
   }
+  // Always update slider in real time
+  updateSlider(rounded, true);
 }
 
 function onManualBlur(val){
@@ -958,7 +960,6 @@ function onManualBlur(val){
 }
 
 function onManualKeydown(e){
-  // Allow Enter key to confirm and update slider
   if(e.key === 'Enter'){
     onManualBlur(document.getElementById('manual-score').value);
     document.getElementById('manual-score').blur();
