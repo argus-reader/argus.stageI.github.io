@@ -436,7 +436,7 @@ input[type=range].risk-slider::-moz-range-thumb{width:18px;height:18px;backgroun
 // ── SUPABASE CONFIG ────────────────────────────────────────
 const SUPABASE_URL = 'https://hieaznchrdyfeqhcwyki.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhpZWF6bmNocmR5ZmVxaGN3eWtpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ5MTQ2NzQsImV4cCI6MjA5MDQ5MDY3NH0.Os9BBR9FVUATF94BI3X3M1Fv-7xY9OgD6Ezgfu_iOVI';
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const sbClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 let supabaseSession = null;
 
 // ── IMAGE BASE URL ─────────────────────────────────────────
@@ -528,10 +528,10 @@ async function doSignup(){
   err.style.display = 'none';
 
   // Auto-generate Reader ID via Supabase RPC
-  var ridResult = await supabase.rpc('generate_reader_id');
+  var ridResult = await sbClient.rpc('generate_reader_id');
   var autoRid = ridResult.data || ('ARGUS' + String(Math.floor(Math.random()*900)+100));
 
-  var result = await supabase.auth.signUp({
+  var result = await sbClient.auth.signUp({
     email: email,
     password: pass,
     options: { data: { reader_id: autoRid } }
@@ -567,7 +567,7 @@ async function doSignin(){
   // Use a Supabase Edge Function or RPC to look up email by reader_id
   // For now, ask reader to enter email on first signin
   // Alternative: store reader_id->email mapping in a public lookup table
-  var result = await supabase.rpc('get_email_by_reader_id', { p_reader_id: rid });
+  var result = await sbClient.rpc('get_email_by_reader_id', { p_reader_id: rid });
 
   if(result.error || !result.data){
     err.textContent = 'Reader ID not found. Please check your ID or create an account.';
@@ -577,7 +577,7 @@ async function doSignin(){
   }
 
   var email = result.data;
-  var signIn = await supabase.auth.signInWithPassword({ email: email, password: pass });
+  var signIn = await sbClient.auth.signInWithPassword({ email: email, password: pass });
 
   btn.textContent = 'Begin Study →'; btn.disabled = false;
 
