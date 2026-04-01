@@ -221,8 +221,9 @@ input[type=range].risk-slider::-moz-range-thumb{width:18px;height:18px;backgroun
       <label class="field-label" for="study-password-signin">Password</label>
       <input class="field-input" type="password" id="study-password-signin" placeholder="Enter your password" autocomplete="off" style="margin-bottom:12px;">
       <button class="btn-primary" id="btn-signin" onclick="doSignin()">Begin Study &rarr;</button>
-      <div style="text-align:center;margin-top:12px;">
-        <button onclick="setAuthMode('forgot')" style="background:none;border:none;color:var(--text-dim);font-family:var(--mono);font-size:10px;letter-spacing:.08em;cursor:pointer;text-decoration:underline;">Forgot password?</button>
+      <div style="text-align:center;margin-top:14px;padding-top:14px;border-top:1px solid var(--border);display:flex;justify-content:center;align-items:center;gap:6px;">
+        <span style="font-size:10px;color:var(--text-dim);">Can't log in?</span>
+        <button onclick="setAuthMode('forgot')" style="background:none;border:1px solid var(--border-bright);color:var(--accent);font-family:var(--mono);font-size:10px;letter-spacing:.08em;padding:4px 10px;cursor:pointer;">Reset Password</button>
       </div>
     </div>
 
@@ -252,7 +253,7 @@ input[type=range].risk-slider::-moz-range-thumb{width:18px;height:18px;backgroun
     <div class="login-meta">
       Responses are stored in your browser session and submitted automatically. This study contains <strong id="case-count-display">0</strong> cases across 4 sessions.<br><br>
       <div style="text-align:center;">For more information, contact below:</div>
-      <div class="contact-line"><span class="line"></span>📧 <a href="/cdn-cgi/l/email-protection#b7cec4d4d6d9c3dbded9d09ad5dec5d4dff7d4d2c5d699d8c5d099d6c2">Dr Y Scantling-Birch</a><span class="line"></span></div>
+      <div class="contact-line"><span class="line"></span>📧 Dr Y Scantling-Birch (yscantling-birch&#64;cera.org.au)<span class="line"></span></div>
     </div>
   </div>
 </div>
@@ -457,7 +458,7 @@ input[type=range].risk-slider::-moz-range-thumb{width:18px;height:18px;backgroun
 </div>
 
 
-<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
+<script>
 // ── SUPABASE CONFIG ────────────────────────────────────────
 const SUPABASE_URL = 'https://hieaznchrdyfeqhcwyki.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhpZWF6bmNocmR5ZmVxaGN3eWtpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ5MTQ2NzQsImV4cCI6MjA5MDQ5MDY3NH0.Os9BBR9FVUATF94BI3X3M1Fv-7xY9OgD6Ezgfu_iOVI';
@@ -536,10 +537,21 @@ let sliderTouched = false;
 
 function ts(){ return new Date().toISOString(); }
 
-document.getElementById('case-count-display').textContent = 40+40+480+480;
-buildTicks();
-document.getElementById('reader-email').addEventListener('keydown', function(e){ if(e.key==='Enter') document.getElementById('study-password-signup').focus(); });
-document.getElementById('study-password').addEventListener('keydown', function(e){ if(e.key==='Enter') startStudy(); });
+document.addEventListener('DOMContentLoaded', async function(){
+  document.getElementById('case-count-display').textContent = 40+40+480+480;
+  buildTicks();
+  var emailEl = document.getElementById('reader-email');
+  if(emailEl) emailEl.addEventListener('keydown', function(e){ if(e.key==='Enter') document.getElementById('study-password-signup').focus(); });
+  var passEl = document.getElementById('study-password-signin');
+  if(passEl) passEl.addEventListener('keydown', function(e){ if(e.key==='Enter') doSignin(); });
+
+  // Clear any persisted Supabase session on page load
+  // This ensures readers always log in fresh
+  var hash = window.location.hash;
+  if(!hash || !hash.includes('access_token')){
+    await sbClient.auth.signOut();
+  }
+});
 
 function buildTicks(){
   var c=document.getElementById('slider-ticks');
@@ -599,7 +611,14 @@ async function doSignup(){
   btn.textContent = 'Register →'; btn.disabled = false;
 
   if(result.error){
-    err.textContent = 'Registration failed: ' + result.error.message;
+    var msg = result.error.message;
+    if(msg.includes('already registered') || msg.includes('already exists') || msg.includes('User already')){
+      err.innerHTML = 'An account with this email already exists.<br>Please use the <strong>Reader Login</strong> tab, or click <strong>Forgot password?</strong> if you have forgotten your password.';
+    } else if(msg.includes('rate limit') || msg.includes('429')){
+      err.textContent = 'Too many registration attempts. Please wait a few minutes and try again.';
+    } else {
+      err.textContent = 'Registration failed: ' + msg;
+    }
     err.style.display='block'; return;
   }
 
@@ -665,11 +684,14 @@ async function doSignin(){
   showScreen('study-screen');
   showToast('Restoring previous session...');
   await restoreSession();
-  switchSession(currentSession);
-  if(window._restoreIndex && window._restoreIndex > 0){
-    loadCase(window._restoreIndex);
-    window._restoreIndex = 0;
+  switchSession(currentSession, true);
+  // Find first unscored case in restored session
+  var startIdx = 0;
+  var sCases = SESSIONS[currentSession];
+  for(var i=0;i<sCases.length;i++){
+    if(!responses[currentSession][sCases[i].id]){ startIdx=i; break; }
   }
+  loadCase(startIdx);
   document.getElementById('survey-modal').classList.add('active');
 }
 
@@ -760,14 +782,21 @@ function dismissSurvey(){
 }
 
 // ── SESSIONS ───────────────────────────────────────────────
-function switchSession(sess){
+function switchSession(sess, skipLoad){
   currentSession = sess;
   CASES = SESSIONS[sess];
   document.querySelectorAll('.session-tab').forEach(function(t){ t.classList.remove('active'); });
   document.getElementById('tab-'+sess.toLowerCase()).classList.add('active');
-  currentIndex = 0;
   sessionStartTime = ts();
-  loadCase(0);
+  if(!skipLoad){
+    // Find first unscored case in this session
+    var startIdx = 0;
+    for(var i=0;i<CASES.length;i++){
+      if(!responses[sess][CASES[i].id]){ startIdx=i; break; }
+    }
+    currentIndex = startIdx;
+    loadCase(startIdx);
+  }
   updateTabProgress();
 }
 
@@ -884,14 +913,14 @@ function updateSlider(val, fromUser){
 }
 
 function onManualInput(val){
-  var n=parseInt(val);
+  var n = parseInt(val);
   if(isNaN(n)) return;
-  if(n<0)n=0; if(n>100)n=100;
-  // Show hint if not a multiple of 5
+  if(n < 0) n = 0;
+  if(n > 100) n = 100;
   var hint = document.getElementById('manual-hint');
   if(n % 5 !== 0){
-    hint.textContent = 'Please enter a multiple of 5';
-    hint.style.color = 'var(--danger)';
+    hint.textContent = 'Will round to nearest 5 on entry';
+    hint.style.color = 'var(--warn)';
   } else {
     hint.textContent = '0–100';
     hint.style.color = 'var(--text-dim)';
@@ -900,15 +929,23 @@ function onManualInput(val){
 }
 
 function onManualBlur(val){
-  var n=parseInt(val);
+  var n = parseInt(val);
   if(isNaN(n)) return;
-  // Round to nearest 5 on blur
-  n=Math.round(n/5)*5;
-  if(n<0)n=0; if(n>100)n=100;
+  n = Math.round(n / 5) * 5;
+  if(n < 0) n = 0;
+  if(n > 100) n = 100;
   document.getElementById('manual-score').value = n;
   document.getElementById('manual-hint').textContent = '0–100';
   document.getElementById('manual-hint').style.color = 'var(--text-dim)';
   updateSlider(n, true);
+}
+
+function onManualKeydown(e){
+  // Allow Enter key to confirm and update slider
+  if(e.key === 'Enter'){
+    onManualBlur(document.getElementById('manual-score').value);
+    document.getElementById('manual-score').blur();
+  }
 }
 
 // ── NAVIGATION ─────────────────────────────────────────────
