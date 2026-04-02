@@ -495,7 +495,12 @@ window.addEventListener('load', async function(){
 });
 
 // ── IMAGE BASE URL ─────────────────────────────────────────
-const IMAGE_BASE = 'https://argus-reader.github.io/argus_content.github.io/images/CASE_';
+const STORAGE_URL = SUPABASE_URL + '/storage/v1';
+const IMAGE_BUCKET = 'images';
+const IMAGE_AI_BUCKET = 'images_ai';
+
+// Signed URL cache — populated on login
+var signedUrls = { standard: {}, ai: {} };
 
 // ── SESSION DEFINITIONS ────────────────────────────────────
 function buildCases(prefix, count){
@@ -503,9 +508,12 @@ function buildCases(prefix, count){
   for(var i=1;i<=count;i++){
     var num = String(i).padStart(3,'0');
     var imgNum = String(Math.min(i,47)).padStart(3,'0');
+    var filename = 'CASE_'+imgNum+'.jpg';
     arr.push({
       id: prefix+'_'+num,
-      imageUrl: IMAGE_BASE+imgNum+'.jpg',
+      filename: filename,
+      imageUrl: '',
+      aiImageUrl: '',
       label: ''
     });
   }
@@ -698,8 +706,8 @@ async function doSignin(){
   readerId = rid;
   document.getElementById('header-reader-id').textContent = readerId;
   showScreen('study-screen');
-  showToast('Restoring previous session...');
-  await restoreSession();
+  showToast('Loading study...');
+  await Promise.all([fetchAllSignedUrls(), restoreSession()]);
   switchSession(currentSession, true);
   // Find first unscored case in restored session
   var startIdx = 0;
@@ -790,6 +798,76 @@ async function restoreSession(){
     console.error('Session restore error:', err);
     showToast('Could not restore previous session');
   }
+}
+
+async function fetchAllSignedUrls(){
+  showToast('Loading images...');
+  var token = supabaseSession ? supabaseSession.access_token : SUPABASE_ANON_KEY;
+
+  // Collect all unique filenames across all sessions
+  var allFiles = {};
+  Object.values(SESSIONS).forEach(function(cases){
+    cases.forEach(function(c){ allFiles[c.filename] = true; });
+  });
+  var filenames = Object.keys(allFiles);
+
+  // Batch request signed URLs for standard images
+  try {
+    var stdResp = await fetch(STORAGE_URL + '/object/sign/' + IMAGE_BUCKET, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': 'Bearer ' + token
+      },
+      body: JSON.stringify({
+        paths: filenames,
+        expiresIn: 43200
+      })
+    });
+    var stdData = await stdResp.json();
+    if(Array.isArray(stdData)){
+      stdData.forEach(function(item){
+        if(item.signedURL){
+          signedUrls.standard[item.path] = SUPABASE_URL + item.signedURL;
+        }
+      });
+    }
+  } catch(e){ console.warn('Standard image URL fetch failed:', e); }
+
+  // Batch request signed URLs for AI images
+  try {
+    var aiResp = await fetch(STORAGE_URL + '/object/sign/' + IMAGE_AI_BUCKET, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': 'Bearer ' + token
+      },
+      body: JSON.stringify({
+        paths: filenames,
+        expiresIn: 43200
+      })
+    });
+    var aiData = await aiResp.json();
+    if(Array.isArray(aiData)){
+      aiData.forEach(function(item){
+        if(item.signedURL){
+          signedUrls.ai[item.path] = SUPABASE_URL + item.signedURL;
+        }
+      });
+    }
+  } catch(e){ console.warn('AI image URL fetch failed:', e); }
+
+  // Apply signed URLs to all cases
+  Object.values(SESSIONS).forEach(function(cases){
+    cases.forEach(function(c){
+      c.imageUrl   = signedUrls.standard[c.filename] || '';
+      c.aiImageUrl = signedUrls.ai[c.filename]       || '';
+    });
+  });
+
+  showToast('✓ Images ready');
 }
 
 function dismissSurvey(){
