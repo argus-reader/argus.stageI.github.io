@@ -208,9 +208,15 @@ input[type=range].risk-slider::-moz-range-thumb{width:18px;height:18px;backgroun
 
     <div id="signup-fields">
       <label class="field-label" for="reader-email">Email Address</label>
-      <input class="field-input" type="email" id="reader-email" placeholder="e.g. yourname@hospital.com" autocomplete="off">
+      <input class="field-input" type="email" id="reader-email" placeholder="e.g. yourname@gmail.com" autocomplete="off">
       <label class="field-label" for="study-password-signup">Choose Password</label>
-      <input class="field-input" type="password" id="study-password-signup" placeholder="Create a password (min. 8 characters)" autocomplete="off" style="margin-bottom:4px;">
+      <input class="field-input" type="password" id="study-password-signup" placeholder="Create a strong password" autocomplete="off" style="margin-bottom:4px;">
+      <p style="font-size:10px;color:var(--text-dim);margin-bottom:6px;">Password must contain:</p>
+      <ul style="font-size:10px;color:var(--text-dim);margin-bottom:12px;padding-left:16px;line-height:1.8;">
+        <li>At least 8 characters</li>
+        <li>At least 1 capital letter (A-Z)</li>
+        <li>At least 1 special character (!@#$%^&*)</li>
+      </ul>
       <p style="font-size:10px;color:var(--text-dim);margin-bottom:20px;">A verification email will be sent to you. Your unique Reader ID will be provided after verification. After registering, please allow up to 5 minutes for your verification email to arrive. Check your junk/spam folder if it doesn't appear in your inbox.</p>
       <button class="btn-primary" id="btn-signup" onclick="doSignup()">Register &rarr;</button>
     </div>
@@ -230,7 +236,7 @@ input[type=range].risk-slider::-moz-range-thumb{width:18px;height:18px;backgroun
     <div id="forgot-fields" style="display:none;">
       <p style="font-size:11px;color:var(--text-muted);line-height:1.6;margin-bottom:16px;">Enter your email address and we will send you a password reset link.</p>
       <label class="field-label" for="forgot-email">Email Address</label>
-      <input class="field-input" type="email" id="forgot-email" placeholder="e.g. yourname@hospital.com" autocomplete="off" style="margin-bottom:20px;">
+      <input class="field-input" type="email" id="forgot-email" placeholder="e.g. yourname@gmail.com" autocomplete="off" style="margin-bottom:20px;">
       <button class="btn-primary" id="btn-forgot" onclick="doForgotPassword()">Send Reset Link &rarr;</button>
       <div style="text-align:center;margin-top:12px;">
         <button onclick="setAuthMode('signin')" style="background:none;border:none;color:var(--text-dim);font-family:var(--mono);font-size:10px;letter-spacing:.08em;cursor:pointer;text-decoration:underline;">Back to login</button>
@@ -598,6 +604,14 @@ async function doSignup(){
   }
   if(pass.length < 8){
     err.textContent = 'Password must be at least 8 characters.';
+    err.style.display='block'; return;
+  }
+  if(!/[A-Z]/.test(pass)){
+    err.textContent = 'Password must contain at least 1 capital letter.';
+    err.style.display='block'; return;
+  }
+  if(!/[!@#$%^&*()_+\-=\[\]{};':"\|,.<>\/?]/.test(pass)){
+    err.textContent = 'Password must contain at least 1 special character (!@#$% etc).';
     err.style.display='block'; return;
   }
 
@@ -1011,21 +1025,31 @@ function updateSlider(val, fromUser){
 
 function onManualInput(val){
   var n = parseInt(val);
-  if(isNaN(n)) return;
+  var hint = document.getElementById('manual-hint');
+  if(isNaN(n) || val === '' || val === '-'){ 
+    hint.textContent = '0–100';
+    hint.style.color = 'var(--text-dim)';
+    return;
+  }
   if(n < 0) n = 0;
   if(n > 100) n = 100;
-  var hint = document.getElementById('manual-hint');
-  // Update slider immediately with any value — round to nearest 5
   var rounded = Math.round(n / 5) * 5;
-  if(n % 5 !== 0){
-    hint.textContent = n + ' → rounds to ' + rounded;
-    hint.style.color = 'var(--warn)';
+  // Only update slider if value is >= 10 or exactly a valid single digit multiple of 5
+  // This prevents slider jumping to 0 when user types first digit of e.g. "25"
+  var str = String(val).trim();
+  if(str.length >= 2 || (str.length === 1 && n % 5 === 0)){
+    if(n % 5 !== 0){
+      hint.textContent = n + ' → rounds to ' + rounded;
+      hint.style.color = 'var(--warn)';
+    } else {
+      hint.textContent = '0–100';
+      hint.style.color = 'var(--text-dim)';
+    }
+    updateSlider(rounded, true);
   } else {
     hint.textContent = '0–100';
     hint.style.color = 'var(--text-dim)';
   }
-  // Always update slider in real time
-  updateSlider(rounded, true);
 }
 
 function onManualBlur(val){
