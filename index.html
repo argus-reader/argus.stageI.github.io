@@ -227,9 +227,12 @@ input[type=range].risk-slider::-moz-range-thumb{width:18px;height:18px;backgroun
       <label class="field-label" for="study-password-signin">Password</label>
       <input class="field-input" type="password" id="study-password-signin" placeholder="Enter your password" autocomplete="off" style="margin-bottom:12px;">
       <button class="btn-primary" id="btn-signin" onclick="doSignin()">Begin Study &rarr;</button>
-      <div style="text-align:center;margin-top:14px;padding-top:14px;border-top:1px solid var(--border);display:flex;justify-content:center;align-items:center;gap:6px;">
-        <span style="font-size:10px;color:var(--text-dim);">Can't log in?</span>
-        <button onclick="setAuthMode('forgot')" style="background:none;border:1px solid var(--border-bright);color:var(--accent);font-family:var(--mono);font-size:10px;letter-spacing:.08em;padding:4px 10px;cursor:pointer;">Reset Password</button>
+      <div style="text-align:center;margin-top:14px;padding-top:14px;border-top:1px solid var(--border);">
+        <div style="display:flex;justify-content:center;align-items:center;gap:6px;margin-bottom:6px;">
+          <span style="font-size:10px;color:var(--text-dim);">Can't log in?</span>
+          <button onclick="setAuthMode('forgot')" style="background:none;border:1px solid var(--border-bright);color:var(--accent);font-family:var(--mono);font-size:10px;letter-spacing:.08em;padding:4px 10px;cursor:pointer;">Reset Password</button>
+        </div>
+        <div style="font-size:10px;color:var(--text-dim);">or contact the investigator: <a href="mailto:yscantling-birch@cera.org.au" style="color:var(--accent);text-decoration:none;">yscantling-birch&#64;cera.org.au</a></div>
       </div>
     </div>
 
@@ -259,7 +262,8 @@ input[type=range].risk-slider::-moz-range-thumb{width:18px;height:18px;backgroun
     <div class="login-meta">
       Responses are stored in your browser session and submitted automatically. This study contains <strong id="case-count-display">0</strong> cases across 4 sessions.<br><br>
       <div style="text-align:center;">For more information, contact below:</div>
-      <div class="contact-line"><span class="line"></span>📧 Dr Y Scantling-Birch (yscantling-birch&#64;cera.org.au)<span class="line"></span></div>
+      <div class="contact-line"><span class="line"></span>📧 Dr Y Scantling-Birch<span class="line"></span></div>
+      <div style="text-align:center;font-size:10px;color:var(--accent);margin-top:4px;">yscantling-birch&#64;cera.org.au</div>
     </div>
   </div>
 </div>
