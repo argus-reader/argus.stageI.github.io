@@ -367,7 +367,7 @@ input[type=range].risk-slider::-moz-range-thumb{width:18px;height:18px;backgroun
         </div>
         <div class="manual-input-row">
           <span class="manual-input-label">Manual entry:</span>
-          <input type="number" class="manual-score-input" id="manual-score" min="0" max="100" step="5" value="" placeholder="—" oninput="onManualInput(this.value)">
+          <input type="number" class="manual-score-input" id="manual-score" min="0" max="100" step="1" value="" placeholder="—" oninput="onManualInput(this.value)" onblur="onManualBlur(this.value)" onkeydown="onManualKeydown(event)">
           <span class="manual-hint">0–100, multiples of 5</span>
         </div>
       </div>
@@ -1054,13 +1054,14 @@ function onManualInput(val){
 
 function onManualBlur(val){
   var n = parseInt(val);
-  if(isNaN(n)) return;
+  if(isNaN(n) || val === '') return;
   n = Math.round(n / 5) * 5;
   if(n < 0) n = 0;
   if(n > 100) n = 100;
   document.getElementById('manual-score').value = n;
   document.getElementById('manual-hint').textContent = '0–100';
   document.getElementById('manual-hint').style.color = 'var(--text-dim)';
+  sliderTouched = true;
   updateSlider(n, true);
 }
 
