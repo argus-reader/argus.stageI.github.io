@@ -368,7 +368,7 @@ input[type=range].risk-slider::-moz-range-thumb{width:18px;height:18px;backgroun
         <div class="manual-input-row">
           <span class="manual-input-label">Manual entry:</span>
           <input type="number" class="manual-score-input" id="manual-score" min="0" max="100" step="1" value="" placeholder="—" oninput="onManualInput(this.value)" onblur="onManualBlur(this.value)" onkeydown="onManualKeydown(event)">
-          <span class="manual-hint">0–100, multiples of 5</span>
+          <span class="manual-hint" id="manual-hint">0–100</span>
         </div>
       </div>
 
