@@ -211,7 +211,7 @@ input[type=range].risk-slider::-moz-range-thumb{width:18px;height:18px;backgroun
       <input class="field-input" type="email" id="reader-email" placeholder="e.g. yourname@hospital.com" autocomplete="off">
       <label class="field-label" for="study-password-signup">Choose Password</label>
       <input class="field-input" type="password" id="study-password-signup" placeholder="Create a password (min. 8 characters)" autocomplete="off" style="margin-bottom:4px;">
-      <p style="font-size:10px;color:var(--text-dim);margin-bottom:20px;">A verification email will be sent to you. Your unique Reader ID will be provided after verification.</p>
+      <p style="font-size:10px;color:var(--text-dim);margin-bottom:20px;">A verification email will be sent to you. Your unique Reader ID will be provided after verification. After registering, please allow up to 5 minutes for your verification email to arrive. Check your junk/spam folder if it doesn't appear in your inbox.</p>
       <button class="btn-primary" id="btn-signup" onclick="doSignup()">Register &rarr;</button>
     </div>
 
@@ -553,10 +553,9 @@ document.addEventListener('DOMContentLoaded', async function(){
   if(passEl) passEl.addEventListener('keydown', function(e){ if(e.key==='Enter') doSignin(); });
 
   // Clear any persisted Supabase session on page load
-  // This ensures readers always log in fresh
   var hash = window.location.hash;
   if(!hash || !hash.includes('access_token')){
-    await sbClient.auth.signOut();
+    await sbClient.auth.signOut().catch(function(){});
   }
 });
 
@@ -815,10 +814,12 @@ async function fetchAllSignedUrls(){
   try {
     var stdResp = await fetch(STORAGE_URL + '/object/sign/' + IMAGE_BUCKET, {
       method: 'POST',
+      mode: 'cors',
       headers: {
         'Content-Type': 'application/json',
         'apikey': SUPABASE_ANON_KEY,
-        'Authorization': 'Bearer ' + token
+        'Authorization': 'Bearer ' + token,
+        'x-client-info': 'argus-stage1'
       },
       body: JSON.stringify({
         paths: filenames,
@@ -839,10 +840,12 @@ async function fetchAllSignedUrls(){
   try {
     var aiResp = await fetch(STORAGE_URL + '/object/sign/' + IMAGE_AI_BUCKET, {
       method: 'POST',
+      mode: 'cors',
       headers: {
         'Content-Type': 'application/json',
         'apikey': SUPABASE_ANON_KEY,
-        'Authorization': 'Bearer ' + token
+        'Authorization': 'Bearer ' + token,
+        'x-client-info': 'argus-stage1'
       },
       body: JSON.stringify({
         paths: filenames,
