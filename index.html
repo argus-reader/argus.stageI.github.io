@@ -830,7 +830,7 @@ async function fetchAllSignedUrls(){
     if(Array.isArray(stdData)){
       stdData.forEach(function(item){
         if(item.signedURL){
-          signedUrls.standard[item.path] = SUPABASE_URL + item.signedURL;
+          signedUrls.standard[item.path] = SUPABASE_URL + '/storage/v1' + item.signedURL;
         }
       });
     }
@@ -856,7 +856,7 @@ async function fetchAllSignedUrls(){
     if(Array.isArray(aiData)){
       aiData.forEach(function(item){
         if(item.signedURL){
-          signedUrls.ai[item.path] = SUPABASE_URL + item.signedURL;
+          signedUrls.ai[item.path] = SUPABASE_URL + '/storage/v1' + item.signedURL;
         }
       });
     }
