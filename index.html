@@ -555,7 +555,7 @@ document.addEventListener('DOMContentLoaded', async function(){
   // Clear any persisted Supabase session on page load
   var hash = window.location.hash;
   if(!hash || !hash.includes('access_token')){
-    await sbClient.auth.signOut().catch(function(){});
+    void sbClient.auth.signOut().catch(function(){});
   }
 });
 
@@ -1188,8 +1188,8 @@ function triggerSave(cb){
 }
 
 function triggerExit(){ openModal('modal-exit'); }
-function exitWithoutSave(){ closeModal('modal-exit'); sbClient.auth.signOut(); showScreen('login-screen'); responses={A:{},B:{},C:{},D:{}}; readerId=''; supabaseSession=null; showToast('Session ended'); }
-function saveAndExit(){ closeModal('modal-exit'); triggerSave(function(){ sbClient.auth.signOut(); showScreen('login-screen'); responses={A:{},B:{},C:{},D:{}}; readerId=''; supabaseSession=null; }); }
+function exitWithoutSave(){ closeModal('modal-exit'); sbClient.auth.signOut().catch(function(){}); showScreen('login-screen'); responses={A:{},B:{},C:{},D:{}}; readerId=''; supabaseSession=null; showToast('Session ended'); }
+function saveAndExit(){ closeModal('modal-exit'); triggerSave(function(){ sbClient.auth.signOut().catch(function(){}); showScreen('login-screen'); responses={A:{},B:{},C:{},D:{}}; readerId=''; supabaseSession=null; }); }
 
 // ── UTILITIES ──────────────────────────────────────────────
 function showResetPasswordForm(){
